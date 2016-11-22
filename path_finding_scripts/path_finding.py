@@ -4,7 +4,7 @@ import numpy as np
 import pylab as pl
 
 # function that finds possible windows
-def find_possible_windows(image, clearance_size, veiw_angle):
+def find_possible_windows(image, distance, clearance_size, veiw_angle):
   """ finds the pixel position of window that meet clearance size
   Args:
     image, distance image numpy array of size (h, w)
@@ -17,7 +17,7 @@ def find_possible_windows(image, clearance_size, veiw_angle):
   for x in xrange(image_shape[0]):
     for y in xrange(image_shape[1]):
       max_x, min_x, max_y, min_y = needed_window_size(image_shape[0], image_shape[1], 3.14/2, 3.14/2, x, y, image[x,y], clearance_size)
-      if np.min(image[min_x:max_x,min_y:max_y]) > 2.0:
+      if np.min(image[min_x:max_x,min_y:max_y]) > distance:
         return max_x, min_x, max_y, min_y  
 
    
@@ -69,26 +69,31 @@ def needed_window_size(image_x, image_y, veiw_angle_x, veiw_angle_y, pos_x, pos_
   min_y = (np.tan(center_angle_pos_y_minus) * image_distance) + image_y/2.0
  
   # bound to window
-  min_x = int(max(min_x, 0))
-  min_y = int(max(min_y, 0))
-  max_x = int(min(max_x, image_x))
-  max_y = int(min(max_y, image_x))
+  min_x = int(min(max(min_x, 0), image_x))
+  min_y = int(min(max(min_y, 0), image_y))
+  max_x = int(min(max(max_x, 0), image_x))
+  max_y = int(min(max(max_y, 0), image_y))
 
   return max_x, min_x, max_y, min_y
 
 # pretend distance image
-distance_image = np.zeros((400,400)) + 1.0
+#distance_image = np.zeros((400,400)) + 1.0
 # set a few chunks to have distance father away
-distance_image[30:70,30:70] = 4.0
-distance_image[200:300,200:300] = 3.0
-distance_image[100:200,30:70] = 2.0
+#distance_image[30:70,30:70] = 4.0
+#distance_image[200:300,200:300] = 3.0
+#distance_image[100:200,30:70] = 2.0
+distance_image = np.loadtxt("depth.data")
+distance_image = distance_image.reshape(376, 672)
+where_are_NaNs = np.isnan(distance_image)
+distance_image[where_are_NaNs] = 0
 
-max_x, min_x, max_y, min_y = find_possible_windows(distance_image, 1.0, 3.14)
+
+max_x, min_x, max_y, min_y = find_possible_windows(distance_image, 10.0, 1.0, 3.14)
 
 pl.imshow(distance_image)
 pl.show()
 
-distance_image[min_x:max_x, min_y:max_y] = 6.0
+distance_image[min_x:max_x, min_y:max_y] = 20.0
 
 pl.imshow(distance_image)
 pl.show()
