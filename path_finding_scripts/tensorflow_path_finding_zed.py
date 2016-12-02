@@ -5,14 +5,23 @@ import time
 import numpy as np
 import tensorflow as tf
 import pylab as pl
+import cv2
 
+
+import rospy
+from std_msgs.msg import Float32MultiArray
+
+# helper function that takes a tensor and an threshold and returns a tensor
+#  of 1s and 0s corrisponding to whether the tensor is greator then the
+#  threshold
 def tensor_to_1_0(tensor, threshold):
   tensor = tensor + threshold
   tensor = tf.sign(tensor)
   tensor = (tensor - 1.0)/(-2.0)
   return tensor
 
-# function to determine the depth threshold given the max pool window size and desired clearence height
+# function to determine the depth threshold given the max pool window 
+#  size and desired clearence height
 def threshold_depth_calc(image_x, image_y, veiw_angle_x, veiw_angle_y, max_pool_window_size, clearance_size):
 
   # this is the angle from the middle of the screen to the far edge
@@ -24,7 +33,7 @@ def threshold_depth_calc(image_x, image_y, veiw_angle_x, veiw_angle_y, max_pool_
   center_image_y = image_y/2.0
 
   # distance from view point to screen (should be same for both x and y if there is no distortion in the image)
-  image_distance = center_image_x/np.tan(center_veiw_angle_x)
+  image_distance = center_image_y/np.tan(center_veiw_angle_y)
 
   # ratio of pixel size to real world size
   ratio = max_pool_window_size / clearance_size
@@ -35,7 +44,9 @@ def threshold_depth_calc(image_x, image_y, veiw_angle_x, veiw_angle_y, max_pool_
   print(threshold_depth)
   return threshold_depth
 
-def find_path():
+# constructs the tensorflow computational graph to determine viable paths
+#  given depth images
+def depth_graph():
   """Train ring_net for a number of steps."""
   with tf.Graph().as_default():
 
@@ -52,8 +63,8 @@ def find_path():
     shape_x = int(depth_conv_4.get_shape()[1])
     shape_y = int(depth_conv_4.get_shape()[2])
     shape = (shape_x, shape_y)
-    view_angle_x = 2.0 
-    view_angle_y = 2.0 
+    view_angle_x = 1.0 
+    view_angle_y = 1.919
     clearence_size= 1.0
 
     # do ever expanding boxes (calc max pool and convert to 0 or 1 if it meets clearence size)
@@ -121,8 +132,12 @@ def find_path():
     # Start running operations on the Graph.
     sess = tf.Session()
 
-    # load in a test frame
-    depth_image = np.loadtxt("depth.data")
+    return sess, x, depth_max
+
+# finds the path map given the depth and computational graph
+def get_path(depth, sess, x, depth_max):
+    #
+    depth_image = np.array(depth)
     depth_image = -depth_image.reshape(1, 376, 672, 1)
     where_are_NaNs = np.isnan(depth_image) # I think there is a faster way to do this
     depth_image[where_are_NaNs] = -1.0
@@ -130,26 +145,39 @@ def find_path():
     # eval depths
     t = time.time() # to time it
     depth_conv_max_g = sess.run([depth_max],feed_dict={x:depth_image})[0]
-    depth_conv_max_g = sess.run([depth_max],feed_dict={x:depth_image})[0]
-    depth_conv_max_g = sess.run([depth_max],feed_dict={x:depth_image})[0]
-    depth_conv_max_g = sess.run([depth_max],feed_dict={x:depth_image})[0]
-    depth_conv_max_g = sess.run([depth_max],feed_dict={x:depth_image})[0]
     #depth_conv_max_g = sess.run([depth_conv_13_1_0],feed_dict={x:depth_image})[0]
     elapsed = time.time() - t
     print("time elapsed " + str(elapsed/5))
     
-    # display max depth map 
-    pl.figure(0) 
-    pl.imshow(depth_image[0,:,:,0])
-    pl.figure(1)
-    pl.imshow(depth_conv_max_g[0,:,:,0])
-    pl.show()
-    print(depth_conv_max_g[0,:,:,0])
-    pl.show()
+    #display_depth = np.concatenate(3*[np.uint8(-20*depth_image[0,:,:,:])], 2)
+    display_depth = np.concatenate(3*[np.uint8(20*depth_conv_max_g[0,:,:,:])], 2)
+    display_depth = cv2.resize(display_depth, (200,200))
+
+    cv2.imshow('image', display_depth)
+    cv2.waitKey(1)
+
+# defines the ros non and subscriber function
+def runner(get_path_ros):
+
+    # to test
+    #get_path_ros(np.loadtxt("depth.data"))
+	
+    rospy.init_node('listener', anonymous=True)
+
+    rospy.Subscriber("quad/depth", Float32MultiArray, get_path_ros)
+
+    # spin() simply keeps python from exiting until this node is stopped
+    rospy.spin()
+
 
 
 def main(argv=None):  # pylint: disable=unused-argument
-  find_path()
+  # define computational graph
+  sess, x, depth_max = depth_graph()
+  # define a function that takes in only depth and produces paths
+  get_path_ros = lambda depth: get_path(depth, sess, x, depth_max)
+  # start runner
+  runner(get_path_ros)
 
 if __name__ == '__main__':
   tf.app.run()

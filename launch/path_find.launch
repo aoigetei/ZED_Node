@@ -1,0 +1,4 @@
+<launch>
+        <node name="visual_path" pkg="ZED_Node" type="tensorflow_path_finding_zed.py" output="screen" />
+</launch>
+

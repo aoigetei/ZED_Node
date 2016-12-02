@@ -5,6 +5,12 @@ import time
 import numpy as np
 import tensorflow as tf
 import pylab as pl
+import cv2
+
+
+import rospy
+from std_msgs.msg import Float32MultiArray
+
 
 def tensor_to_1_0(tensor, threshold):
   tensor = tensor + threshold
@@ -35,7 +41,7 @@ def threshold_depth_calc(image_x, image_y, veiw_angle_x, veiw_angle_y, max_pool_
   print(threshold_depth)
   return threshold_depth
 
-def find_path():
+def find_path(data):
   """Train ring_net for a number of steps."""
   with tf.Graph().as_default():
 
@@ -121,8 +127,11 @@ def find_path():
     # Start running operations on the Graph.
     sess = tf.Session()
 
+    #print(data.data)
+
     # load in a test frame
-    depth_image = np.loadtxt("depth.data")
+    #depth_image = np.loadtxt("depth.data")
+    depth_image = np.array(data.data)
     depth_image = -depth_image.reshape(1, 376, 672, 1)
     where_are_NaNs = np.isnan(depth_image) # I think there is a faster way to do this
     depth_image[where_are_NaNs] = -1.0
@@ -139,17 +148,34 @@ def find_path():
     print("time elapsed " + str(elapsed/5))
     
     # display max depth map 
-    pl.figure(0) 
+    """pl.figure(0) 
     pl.imshow(depth_image[0,:,:,0])
     pl.figure(1)
     pl.imshow(depth_conv_max_g[0,:,:,0])
     pl.show()
     print(depth_conv_max_g[0,:,:,0])
     pl.show()
+"""
+    #display_depth = np.concatenate(3*[np.uint8(-20*depth_image[0,:,:,:])], 2)
+    display_depth = np.concatenate(3*[np.uint8(20*depth_conv_max_g[0,:,:,:])], 2)
+    display_depth = cv2.resize(display_depth, (500,500))
+    print(np.max(display_depth))
+
+    cv2.imshow('image', display_depth)
+    cv2.waitKey(1)
+    
+def runner():
+	
+    rospy.init_node('listener', anonymous=True)
+
+    rospy.Subscriber("quad/depth", Float32MultiArray, find_path)
+
+    # spin() simply keeps python from exiting until this node is stopped
+    rospy.spin()
 
 
 def main(argv=None):  # pylint: disable=unused-argument
-  find_path()
+  runner()
 
 if __name__ == '__main__':
   tf.app.run()
