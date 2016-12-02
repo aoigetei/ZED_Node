@@ -1,2 +1,2 @@
 # ZED_Node
-Contains the code to use the ZED Camera for navigation and Image Classification
+Using TensorFlow and data from StereoLabs ZED depth camera, map out viable paths for a Quadrotor.
